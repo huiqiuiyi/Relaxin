@@ -216,7 +216,7 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
         view.addSubview(loading)
         loading.startAnimating()
 
-        let completion: (URL?) -> Void = { [weak self] url in
+        let completion: (URL?, String?) -> Void = { [weak self] url, errorText in
             DispatchQueue.main.async {
                 guard let self else { return }
                 loading.stopAnimating()
@@ -224,7 +224,7 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
                 self.isExporting = false
 
                 guard let url else {
-                    self.showAlert("无法载入这个项目，请换一个试试")
+                    self.showAlert("载入失败：\(errorText ?? "未知错误")")
                     return
                 }
                 self.dismiss(animated: true) {
@@ -241,52 +241,126 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
         }
     }
 
-    private func exportImage(_ asset: PHAsset, completion: @escaping (URL?) -> Void) {
-        // 异步拿原始数据（后台线程回调），按真实 UTI 给扩展名。
-        // 不转码、不改尺寸：原样保存，UIImage 原生支持 HEIC/PNG/JPEG。
+    private func exportImage(_ asset: PHAsset, completion: @escaping (URL?, String?) -> Void) {
+        // 用 requestImage 拿图并编码为 JPEG。
+        // 先按资产真实尺寸要原图；失败（iCloud 未下载 / 内存过大）时逐级降到 2048、1024。
+        let widths: [CGFloat] = [0, 2048, 1024] // 0 = 原图尺寸
+        requestImageStep(asset, widths: widths, index: 0, completion: completion)
+    }
+
+    private func requestImageStep(
+        _ asset: PHAsset,
+        widths: [CGFloat],
+        index: Int,
+        completion: @escaping (URL?, String?) -> Void
+    ) {
+        guard index < widths.count else {
+            completion(nil, "图片载入失败，请换一张试试")
+            return
+        }
+
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.isSynchronous = false
         options.isNetworkAccessAllowed = true
         options.resizeMode = .none
 
-        imageManager.requestImageDataAndOrientation(
+        let targetSize: CGSize
+        if widths[index] == 0 {
+            targetSize = CGSize(
+                width: CGFloat(asset.pixelWidth),
+                height: CGFloat(asset.pixelHeight)
+            )
+        } else {
+            let w = widths[index]
+            let scale = w / CGFloat(max(asset.pixelWidth, 1))
+            targetSize = CGSize(
+                width: w,
+                height: CGFloat(asset.pixelHeight) * scale
+            )
+        }
+
+        imageManager.requestImage(
             for: asset,
+            targetSize: targetSize,
+            contentMode: .aspectFit,
             options: options
-        ) { data, dataUTI, _, _ in
-            guard let data, !data.isEmpty else {
-                completion(nil)
+        ) { [weak self] image, info in
+            guard let self else { return }
+            guard let image else {
+                let cancelled = info?[PHImageCancelledKey] as? Bool == true
+                if cancelled {
+                    completion(nil, "已取消")
+                } else {
+                    // 这一级失败，降一级再试
+                    self.requestImageStep(asset, widths: widths, index: index + 1, completion: completion)
+                }
                 return
             }
-            let ext = Self.fileExtension(for: dataUTI)
+            guard let data = image.jpegData(compressionQuality: 0.92) else {
+                self.requestImageStep(asset, widths: widths, index: index + 1, completion: completion)
+                return
+            }
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("relaxin-bg-\(UUID().uuidString).\(ext)")
+                .appendingPathComponent("relaxin-bg-\(UUID().uuidString).jpg")
             do {
                 try data.write(to: url)
-                completion(url)
+                completion(url, nil)
             } catch {
-                completion(nil)
+                completion(nil, "写入失败：\(error.localizedDescription)")
             }
         }
     }
 
-    /// Maps a photo UTI to a file extension UIImage can decode.
-    private static func fileExtension(for dataUTI: String?) -> String {
-        switch dataUTI {
-        case "public.heic", "public.heif":
-            "heic"
-        case "public.png":
-            "png"
-        case "public.jpeg", "public.jpg":
-            "jpg"
-        case "public.gif":
-            "gif"
-        default:
-            "jpg"
-        }
+    private func exportVideo(_ asset: PHAsset, completion: @escaping (URL?, String?) -> Void) {
+        // 第一优先：直接拿原始资源文件数据（对本地视频最稳，绕开 AVAsset 转码）
+        exportVideoRaw(asset, completion: completion)
     }
 
-    private func exportVideo(_ asset: PHAsset, completion: @escaping (URL?) -> Void) {
+    /// 用 PHAssetResourceManager 直接取原始资源数据（本地视频首选）。
+    private func exportVideoRaw(_ asset: PHAsset, completion: @escaping (URL?, String?) -> Void) {
+        guard let resource = PHAssetResource.assetResources(for: asset).first else {
+            exportVideoViaAVAsset(asset, completion: completion)
+            return
+        }
+
+        let ext = Self.extensionForVideo(resource.originalFilename)
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent("relaxin-bg-\(UUID().uuidString).\(ext)")
+        let manager = PHAssetResourceManager.default()
+
+        let requestOptions = PHAssetResourceRequestOptions()
+        requestOptions.isNetworkAccessAllowed = true
+
+        var data = Data()
+        manager.requestData(
+            for: resource,
+            options: requestOptions,
+            dataReceivedHandler: { chunk in
+                data.append(chunk)
+            },
+            completionHandler: { [weak self] error in
+                guard let self else { return }
+                if let error {
+                    // 原始资源拿不到（可能是 iCloud 未下载），退回 AVAsset 转码
+                    self.exportVideoViaAVAsset(asset, completion: completion)
+                    return
+                }
+                guard !data.isEmpty else {
+                    self.exportVideoViaAVAsset(asset, completion: completion)
+                    return
+                }
+                do {
+                    try data.write(to: dest)
+                    completion(dest, nil)
+                } catch {
+                    completion(nil, "视频写入失败：\(error.localizedDescription)")
+                }
+            }
+        )
+    }
+
+    private func exportVideoViaAVAsset(_ asset: PHAsset, completion: @escaping (URL?, String?) -> Void) {
         let options = PHVideoRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.isNetworkAccessAllowed = true
@@ -294,9 +368,11 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
         imageManager.requestAVAsset(
             forVideo: asset,
             options: options
-        ) { avAsset, _, _ in
+        ) { avAsset, info, _ in
             guard let avAsset else {
-                completion(nil)
+                let error = (info?[PHImageErrorKey] as? NSError)?.localizedDescription
+                    ?? (info?[PHImageCancelledKey] as? Bool == true ? "已取消" : nil)
+                completion(nil, error)
                 return
             }
 
@@ -308,7 +384,7 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
                     .appendingPathComponent("relaxin-bg-\(UUID().uuidString).\(ext)")
                 do {
                     try FileManager.default.copyItem(at: urlAsset.url, to: dest)
-                    completion(dest)
+                    completion(dest, nil)
                     return
                 } catch {
                     // 复制失败，继续走转码
@@ -320,7 +396,7 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
                 asset: avAsset,
                 presetName: AVAssetExportPresetHighestQuality
             ) else {
-                completion(nil)
+                completion(nil, "无法创建视频导出器")
                 return
             }
             let dest = FileManager.default.temporaryDirectory
@@ -330,12 +406,20 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
             exportSession.shouldOptimizeForNetworkUse = false
             exportSession.exportAsynchronously {
                 if exportSession.status == .completed {
-                    completion(dest)
+                    completion(dest, nil)
                 } else {
-                    completion(nil)
+                    let msg = exportSession.error?.localizedDescription
+                        ?? "导出状态 \(exportSession.status.rawValue)"
+                    completion(nil, "视频导出失败：\(msg)")
                 }
             }
         }
+    }
+
+    private static func extensionForVideo(_ filename: String) -> String {
+        let ext = (filename as NSString).pathExtension
+        guard !ext.isEmpty else { return "mov" }
+        return ext.lowercased()
     }
 
     private static func durationText(_ duration: TimeInterval) -> String {
