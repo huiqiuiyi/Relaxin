@@ -3656,5 +3656,47 @@
       }
     }
   },
+    "Choose Background Image" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Background Image" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择背景图片" } }
+      }
+    },
+    "Choose Background Video" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Background Video" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择背景视频" } }
+      }
+    },
+    "Choose from Files" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose from Files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从文件中选择" } }
+      }
+    },
+    "Custom Background" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom Background" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义背景" } }
+      }
+    },
+    "Remove Background" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove Background" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除背景" } }
+      }
+    },
+    "Use Image Background" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Image Background" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用图片背景" } }
+      }
+    },
+    "Use Video Background" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Video Background" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用视频背景" } }
+      }
+    },
   "version" : "1.3"
 }
