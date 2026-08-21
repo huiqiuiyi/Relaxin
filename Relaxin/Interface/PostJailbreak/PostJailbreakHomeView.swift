@@ -1,7 +1,6 @@
 import LocalAuthentication
 import PhotosUI
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct PostJailbreakHomeView: View {
     private static let ownGoalStudioPicksURL = URL(string: "https://owngoal.dev")!
@@ -21,7 +20,6 @@ struct PostJailbreakHomeView: View {
     @State private var showsBackgroundPicker = false
     @State private var backgroundPickerKind: CustomBackgroundKind = .image
     @State private var backgroundPickerItem: PhotosPickerItem?
-    @State private var showsBackgroundFilePicker = false
     @State private var backgroundRevision = 0
 
     private var bootLogoUsesDarkAppearance: Bool {
@@ -154,13 +152,6 @@ struct PostJailbreakHomeView: View {
         .sheet(isPresented: $showsBackgroundPicker) {
             backgroundPicker
         }
-        .fileImporter(
-            isPresented: $showsBackgroundFilePicker,
-            allowedContentTypes: [.image, .movie],
-            allowsMultipleSelection: false
-        ) { result in
-            loadBackgroundFile(result)
-        }
         .alert(item: $alert) { alert in
             switch alert.kind {
             case .notice:
@@ -232,8 +223,6 @@ struct PostJailbreakHomeView: View {
             screen = .customBackground
         case let .setBackground(kind):
             showBackgroundPicker(kind: kind)
-        case .setBackgroundFromFile:
-            showsBackgroundFilePicker = true
         case .clearBackground:
             CustomBackgroundStore.clear()
             backgroundRevision += 1
@@ -395,38 +384,6 @@ struct PostJailbreakHomeView: View {
             } catch {
                 AppLog.error(Self.self, "background pick failed: \(error)")
             }
-        }
-    }
-
-    /// Handles the system file picker result. The picked file is copied
-    /// into the app-owned storage directory; type (image vs. video) is
-    /// inferred from the file extension.
-    private func loadBackgroundFile(_ result: Result<[URL], Error>) {
-        switch result {
-        case let .success(urls):
-            guard let url = urls.first else { return }
-            let ext = url.pathExtension.lowercased()
-            let imageExtensions: Set<String> = [
-                "png", "jpg", "jpeg", "heic", "heif", "gif", "webp", "bmp", "tiff",
-            ]
-            let kind: CustomBackgroundKind = imageExtensions.contains(ext) ? .image : .video
-
-            // Security-scoped URL from the document picker: must start/stop access.
-            let accessing = url.startAccessingSecurityScopedResource()
-            defer {
-                if accessing { url.stopAccessingSecurityScopedResource() }
-            }
-
-            guard CustomBackgroundStore.install(kind: kind, sourceURL: url) else {
-                AppLog.error(Self.self, "background file install failed: \(url)")
-                return
-            }
-
-            backgroundRevision += 1
-            showsBackgroundFilePicker = false
-            screen = .customBackground
-        case let .failure(error):
-            AppLog.error(Self.self, "background file pick failed: \(error)")
         }
     }
 

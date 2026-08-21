@@ -155,10 +155,6 @@ extension PostJailbreakHomeView {
                         .setBackground(.video),
                         "使用视频背景"
                     ),
-                    (
-                        .setBackgroundFromFile,
-                        "从文件中选择"
-                    ),
                 ]
                 if CustomBackgroundStore.kind != .none {
                     entries.append(
@@ -280,7 +276,6 @@ extension PostJailbreakHomeView {
         case refreshJailbreakApps
         case customizeBackground
         case setBackground(CustomBackgroundKind)
-        case setBackgroundFromFile
         case clearBackground
         case resetMobilePassword
         case reinstallSileo
