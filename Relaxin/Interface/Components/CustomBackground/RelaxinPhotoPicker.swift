@@ -21,7 +21,9 @@ final class RelaxinPhotoPickerController: UIViewController {
     private var collectionView: UICollectionView!
     private var assets: PHFetchResult<PHAsset> = PHFetchResult<PHAsset>()
     private var thumbnailCache: [String: UIImage] = [:]
-    private let imageManager = PHImageManager.default()
+    private var pendingRequests: [IndexPath: PHImageRequestID] = [:]
+    private let imageManager = PHCachingImageManager()
+    private var thumbnailSize = CGSize(width: 200, height: 200)
 
     private init(
         mode: PickerMode,
@@ -63,12 +65,14 @@ final class RelaxinPhotoPickerController: UIViewController {
         layout.minimumInteritemSpacing = 12
         layout.minimumLineSpacing = 12
         layout.sectionInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        thumbnailSize = CGSize(width: side * UIScreen.main.scale, height: side * UIScreen.main.scale)
 
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collectionView.backgroundColor = .systemBackground
         collectionView.dataSource = self
         collectionView.delegate = self
+        collectionView.prefetchDataSource = self
         collectionView.register(RelaxinPhotoCell.self, forCellWithReuseIdentifier: "cell")
         view.addSubview(collectionView)
 
@@ -132,7 +136,44 @@ final class RelaxinPhotoPickerController: UIViewController {
     }
 }
 
-extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollectionViewDelegate {
+extension RelaxinPhotoPickerController:
+    UICollectionViewDataSource,
+    UICollectionViewDelegate,
+    UICollectionViewDataSourcePrefetching
+{
+    func collectionView(
+        _ collectionView: UICollectionView,
+        prefetchItemsAt indexPaths: [IndexPath]
+    ) {
+        // 预取即将进入视口的缩略图，滚动更流畅
+        let assetsToPrefetch = indexPaths
+            .filter { $0.item < assets.count && thumbnailCache[assets.object(at: $0.item).localIdentifier] == nil }
+            .map { assets.object(at: $0.item) }
+        guard !assetsToPrefetch.isEmpty else { return }
+        imageManager.startCachingImages(
+            for: assetsToPrefetch,
+            targetSize: thumbnailSize,
+            contentMode: .aspectFill,
+            options: nil
+        )
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        cancelPrefetchingForItemsAt indexPaths: [IndexPath]
+    ) {
+        let assetsToCancel = indexPaths
+            .filter { $0.item < assets.count }
+            .map { assets.object(at: $0.item) }
+        guard !assetsToCancel.isEmpty else { return }
+        imageManager.stopCachingImages(
+            for: assetsToCancel,
+            targetSize: thumbnailSize,
+            contentMode: .aspectFill,
+            options: nil
+        )
+    }
+
     func collectionView(
         _ collectionView: UICollectionView,
         numberOfItemsInSection section: Int
@@ -152,25 +193,43 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
         }
         let asset = assets.object(at: indexPath.item)
         let key = asset.localIdentifier
+
+        // 取消该 cell 之前的未完成请求，避免滚动时错乱
+        if let previous = pendingRequests[indexPath] {
+            imageManager.cancelImageRequest(previous)
+            pendingRequests[indexPath] = nil
+        }
+
         if let cached = thumbnailCache[key] {
             cell.imageView.image = cached
         } else {
-            let side = (view.bounds.width - 12 * 5) / 4
-            let targetSize = CGSize(width: side * 2, height: side * 2)
-            imageManager.requestImage(
+            cell.imageView.image = nil
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .opportunistic // 先出小图/模糊图，滚动不卡
+            options.resizeMode = .fast
+            options.isNetworkAccessAllowed = true
+            let requestID = imageManager.requestImage(
                 for: asset,
-                targetSize: targetSize,
+                targetSize: thumbnailSize,
                 contentMode: .aspectFill,
-                options: nil
-            ) { [weak self] image, _ in
-                guard let self, let image else { return }
+                options: options
+            ) { [weak self] image, info in
+                guard let self, let image,
+                      let degraded = info?[PHImageResultIsDegradedKey] as? Bool,
+                      !degraded
+                else {
+                    return
+                }
                 self.thumbnailCache[key] = image
-                if let visible = collectionView.indexPathsForVisibleItems
-                    .first(where: { $0 == indexPath }) {
-                    collectionView.reloadItems(at: [visible])
+                self.pendingRequests[indexPath] = nil
+                DispatchQueue.main.async {
+                    if let visible = collectionView.indexPathsForVisibleItems
+                        .first(where: { $0 == indexPath }) {
+                        collectionView.reloadItems(at: [visible])
+                    }
                 }
             }
-            cell.imageView.image = nil
+            pendingRequests[indexPath] = requestID
         }
 
         if mode == .video {
@@ -189,55 +248,82 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
     }
 
     private func pick(_ asset: PHAsset) {
+        // 显示加载指示，防止重复点击
+        let loading = UIActivityIndicatorView(style: .medium)
+        loading.center = view.center
+        view.addSubview(loading)
+        loading.startAnimating()
+        view.isUserInteractionEnabled = false
+
         switch mode {
         case .image:
             let options = PHImageRequestOptions()
             options.deliveryMode = .highQualityFormat
             options.isSynchronous = false
+            options.isNetworkAccessAllowed = true
             imageManager.requestImageDataAndOrientation(for: asset, options: options) {
                 [weak self] data, _, _, _ in
-                guard let self, let data else { return }
-                self.finish(with: data, ext: "jpg")
+                DispatchQueue.main.async {
+                    guard let self, let data else {
+                        self?.stopLoading(loading)
+                        return
+                    }
+                    self.finish(with: data, ext: "jpg", loading: loading)
+                }
             }
         case .video:
             let options = PHVideoRequestOptions()
             options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
             imageManager.requestAVAsset(
                 forVideo: asset,
                 options: options
             ) {
                 [weak self] avAsset, _, _ in
-                guard let self, let urlAsset = avAsset as? AVURLAsset else { return }
-                // Copy the video into our storage directly from its URL.
                 DispatchQueue.main.async {
-                    self.installVideo(urlAsset.url)
+                    guard let self, let urlAsset = avAsset as? AVURLAsset else {
+                        self?.stopLoading(loading)
+                        return
+                    }
+                    // Copy the video into our storage directly from its URL.
+                    self.installVideo(urlAsset.url, loading: loading)
                 }
             }
         }
     }
 
-    private func finish(with data: Data, ext: String) {
+    private func stopLoading(_ loading: UIActivityIndicatorView) {
+        loading.stopAnimating()
+        loading.removeFromSuperview()
+        view.isUserInteractionEnabled = true
+    }
+
+    private func finish(with data: Data, ext: String, loading: UIActivityIndicatorView) {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("relaxin-bg-\(UUID().uuidString).\(ext)")
         do {
             try data.write(to: url)
         } catch {
+            stopLoading(loading)
             return
         }
+        stopLoading(loading)
         dismiss(animated: true) { [weak self] in
             self?.onPick(url)
         }
     }
 
-    private func installVideo(_ sourceURL: URL) {
+    private func installVideo(_ sourceURL: URL, loading: UIActivityIndicatorView) {
         let ext = sourceURL.pathExtension.isEmpty ? "mov" : sourceURL.pathExtension
         let dest = FileManager.default.temporaryDirectory
             .appendingPathComponent("relaxin-bg-\(UUID().uuidString).\(ext)")
         do {
             try FileManager.default.copyItem(at: sourceURL, to: dest)
         } catch {
+            stopLoading(loading)
             return
         }
+        stopLoading(loading)
         dismiss(animated: true) { [weak self] in
             self?.onPick(dest)
         }
