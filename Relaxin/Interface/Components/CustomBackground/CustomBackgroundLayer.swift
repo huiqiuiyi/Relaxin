@@ -19,6 +19,10 @@ struct CustomBackgroundLayer: View {
                         .resizable()
                         .scaledToFill()
                         .ignoresSafeArea()
+                        // Keep terminal text readable on the wallpaper.
+                        .overlay {
+                            SwiftUI.Color.black.opacity(0.25)
+                        }
                 } else {
                     SwiftUI.Color.clear
                 }
@@ -26,14 +30,14 @@ struct CustomBackgroundLayer: View {
                 if let url = CustomBackgroundStore.storedURL {
                     RelaxinVideoBackground(url: url)
                         .ignoresSafeArea()
+                        // Keep terminal text readable on the wallpaper.
+                        .overlay {
+                            SwiftUI.Color.black.opacity(0.25)
+                        }
                 } else {
                     SwiftUI.Color.clear
                 }
             }
-        }
-        // Keep terminal text readable on any wallpaper: a soft dim veil.
-        .overlay {
-            SwiftUI.Color.black.opacity(0.25)
         }
         .ignoresSafeArea()
     }
