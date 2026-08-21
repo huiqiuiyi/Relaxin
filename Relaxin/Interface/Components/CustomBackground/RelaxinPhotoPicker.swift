@@ -1,3 +1,4 @@
+import AVFoundation
 import Photos
 import SwiftUI
 import UIKit
@@ -175,7 +176,7 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
 
         // 直接在 cell 上设置缩略图，不 reload（避免索引错乱/闪烁）
         let options = PHImageRequestOptions()
-        options.deliveryMode = .fastFormat
+        options.deliveryMode = .highQualityFormat // 直接要清晰缩略图，不要模糊过渡图
         options.resizeMode = .fast
         options.isNetworkAccessAllowed = true
         options.isSynchronous = false
@@ -241,33 +242,47 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
     }
 
     private func exportImage(_ asset: PHAsset, completion: @escaping (URL?) -> Void) {
-        // 统一转成 JPEG，避免 HEIC 等格式问题
+        // 异步拿原始数据（后台线程回调），按真实 UTI 给扩展名。
+        // 不转码、不改尺寸：原样保存，UIImage 原生支持 HEIC/PNG/JPEG。
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
-        options.isSynchronous = true // 同步拿原图，避免后台线程问题
+        options.isSynchronous = false
         options.isNetworkAccessAllowed = true
         options.resizeMode = .none
 
-        imageManager.requestImage(
+        imageManager.requestImageDataAndOrientation(
             for: asset,
-            targetSize: PHImageManagerMaximumSize,
-            contentMode: .aspectFit,
             options: options
-        ) { image, info in
-            guard let image,
-                  let data = image.jpegData(compressionQuality: 0.92)
-            else {
+        ) { data, dataUTI, _, _ in
+            guard let data, !data.isEmpty else {
                 completion(nil)
                 return
             }
+            let ext = Self.fileExtension(for: dataUTI)
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("relaxin-bg-\(UUID().uuidString).jpg")
+                .appendingPathComponent("relaxin-bg-\(UUID().uuidString).\(ext)")
             do {
                 try data.write(to: url)
                 completion(url)
             } catch {
                 completion(nil)
             }
+        }
+    }
+
+    /// Maps a photo UTI to a file extension UIImage can decode.
+    private static func fileExtension(for dataUTI: String?) -> String {
+        switch dataUTI {
+        case "public.heic", "public.heif":
+            "heic"
+        case "public.png":
+            "png"
+        case "public.jpeg", "public.jpg":
+            "jpg"
+        case "public.gif":
+            "gif"
+        default:
+            "jpg"
         }
     }
 
@@ -280,19 +295,45 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
             forVideo: asset,
             options: options
         ) { avAsset, _, _ in
-            guard let urlAsset = avAsset as? AVURLAsset else {
+            guard let avAsset else {
                 completion(nil)
                 return
             }
-            // 复制到我们自己的临时目录（AVURLAsset 的 URL 可能在系统缓存里）
-            let ext = urlAsset.url.pathExtension.isEmpty ? "mov" : urlAsset.url.pathExtension
-            let dest = FileManager.default.temporaryDirectory
-                .appendingPathComponent("relaxin-bg-\(UUID().uuidString).\(ext)")
-            do {
-                try FileManager.default.copyItem(at: urlAsset.url, to: dest)
-                completion(dest)
-            } catch {
+
+            // 优先直接复制（本地视频），失败则用 AVAssetExportSession 转码导出
+            if let urlAsset = avAsset as? AVURLAsset,
+               FileManager.default.fileExists(atPath: urlAsset.url.path) {
+                let ext = urlAsset.url.pathExtension.isEmpty ? "mov" : urlAsset.url.pathExtension
+                let dest = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("relaxin-bg-\(UUID().uuidString).\(ext)")
+                do {
+                    try FileManager.default.copyItem(at: urlAsset.url, to: dest)
+                    completion(dest)
+                    return
+                } catch {
+                    // 复制失败，继续走转码
+                }
+            }
+
+            // 转码导出到我们自己的临时文件（兼容 iCloud / 混合格式）
+            guard let exportSession = AVAssetExportSession(
+                asset: avAsset,
+                presetName: AVAssetExportPresetHighestQuality
+            ) else {
                 completion(nil)
+                return
+            }
+            let dest = FileManager.default.temporaryDirectory
+                .appendingPathComponent("relaxin-bg-\(UUID().uuidString).mov")
+            exportSession.outputURL = dest
+            exportSession.outputFileType = .mov
+            exportSession.shouldOptimizeForNetworkUse = false
+            exportSession.exportAsynchronously {
+                if exportSession.status == .completed {
+                    completion(dest)
+                } else {
+                    completion(nil)
+                }
             }
         }
     }
