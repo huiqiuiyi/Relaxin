@@ -111,7 +111,7 @@ extension PostJailbreakHomeView {
                     ),
                     (
                         .customizeBackground,
-                        "\(String(localized: "Custom Background", bundle: resourceBundle)): \(CustomBackgroundStore.summary)"
+                        "自定义背景: \(CustomBackgroundStore.summary)"
                     ),
                     (
                         .resetAndRemoval,
@@ -149,22 +149,22 @@ extension PostJailbreakHomeView {
                 var entries: [(MenuAction, String)] = [
                     (
                         .setBackground(.image),
-                        String(localized: "Use Image Background", bundle: resourceBundle)
+                        "使用图片背景"
                     ),
                     (
                         .setBackground(.video),
-                        String(localized: "Use Video Background", bundle: resourceBundle)
+                        "使用视频背景"
                     ),
                     (
                         .setBackgroundFromFile,
-                        String(localized: "Choose from Files", bundle: resourceBundle)
+                        "从文件中选择"
                     ),
                 ]
                 if CustomBackgroundStore.kind != .none {
                     entries.append(
                         (
                             .clearBackground,
-                            String(localized: "Remove Background", bundle: resourceBundle)
+                            "移除背景"
                         )
                     )
                 }

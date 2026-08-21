@@ -10,9 +10,9 @@ enum CustomBackgroundKind: String {
 
     var displayName: String {
         switch self {
-        case .none: "None"
-        case .image: "Image"
-        case .video: "Video"
+        case .none: "无"
+        case .image: "图片"
+        case .video: "视频"
         }
     }
 }
@@ -101,9 +101,9 @@ enum CustomBackgroundStore {
     static var summary: String {
         switch kind {
         case .none:
-            "None"
+            "无"
         case .image, .video:
-            "\(kind.displayName): \(fileName ?? "?")"
+            kind.displayName
         }
     }
 }

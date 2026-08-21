@@ -349,22 +349,14 @@ struct PostJailbreakHomeView: View {
                 preferredItemEncoding: .current
             ) {
                 Text(
-                    String(
-                        localized: backgroundPickerKind == .image
-                            ? "Choose Background Image"
-                            : "Choose Background Video",
-                        bundle: environment.resourceBundle
-                    )
+                    backgroundPickerKind == .image
+                        ? "选择背景图片"
+                        : "选择背景视频"
                 )
                 .font(Theme.font)
                 .padding()
             }
-            .navigationTitle(
-                String(
-                    localized: "Custom Background",
-                    bundle: environment.resourceBundle
-                )
-            )
+            .navigationTitle("自定义背景")
             .onChange(of: backgroundPickerItem) { newItem in
                 guard let newItem else { return }
                 loadBackgroundItem(newItem)
@@ -443,14 +435,8 @@ struct PostJailbreakHomeView: View {
         guard !session.isPerformingAction else { return }
 
         let alert = UIAlertController(
-            title: String(
-                localized: "Custom Slogan",
-                bundle: environment.resourceBundle
-            ),
-            message: String(
-                localized: "Edit the text shown on the home screen.",
-                bundle: environment.resourceBundle
-            ),
+            title: "自定义标语",
+            message: "修改首页显示的文字，保存后立即生效。",
             preferredStyle: .alert
         )
         alert.addTextField { textField in
@@ -460,10 +446,7 @@ struct PostJailbreakHomeView: View {
         }
         alert.addAction(
             UIAlertAction(
-                title: String(
-                    localized: "Save",
-                    bundle: environment.resourceBundle
-                ),
+                title: "保存",
                 style: .default
             ) { [weak alert] _ in
                 let text = alert?.textFields?.first?.text ?? ""
@@ -472,10 +455,7 @@ struct PostJailbreakHomeView: View {
         )
         alert.addAction(
             UIAlertAction(
-                title: String(
-                    localized: "Reset",
-                    bundle: environment.resourceBundle
-                ),
+                title: "重置",
                 style: .destructive
             ) { _ in
                 RelaxinSlogan.reset()
@@ -483,10 +463,7 @@ struct PostJailbreakHomeView: View {
         )
         alert.addAction(
             UIAlertAction(
-                title: String(
-                    localized: "Cancel",
-                    bundle: environment.resourceBundle
-                ),
+                title: "取消",
                 style: .cancel
             )
         )
