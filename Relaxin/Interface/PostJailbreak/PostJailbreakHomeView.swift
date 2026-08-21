@@ -324,15 +324,15 @@ struct PostJailbreakHomeView: View {
         let controller: RelaxinPhotoPickerController
         if kind == .image {
             controller = RelaxinPhotoPickerController.imageMode(
-                onPick: { [weak self] url in
-                    self?.installBackground(url: url)
+                onPick: { [self] url in
+                    self.installBackground(url: url)
                 },
                 onCancel: {}
             )
         } else {
             controller = RelaxinPhotoPickerController.videoMode(
-                onPick: { [weak self] url in
-                    self?.installBackground(url: url)
+                onPick: { [self] url in
+                    self.installBackground(url: url)
                 },
                 onCancel: {}
             )

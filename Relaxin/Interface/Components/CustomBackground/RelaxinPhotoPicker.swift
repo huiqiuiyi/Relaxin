@@ -202,7 +202,10 @@ extension RelaxinPhotoPickerController: UICollectionViewDataSource, UICollection
         case .video:
             let options = PHVideoRequestOptions()
             options.deliveryMode = .highQualityFormat
-            imageManager.requestAVAsset(for: asset, options: options) {
+            imageManager.requestAVAsset(
+                forVideo: asset,
+                options: options
+            ) {
                 [weak self] avAsset, _, _ in
                 guard let self, let urlAsset = avAsset as? AVURLAsset else { return }
                 // Copy the video into our storage directly from its URL.
