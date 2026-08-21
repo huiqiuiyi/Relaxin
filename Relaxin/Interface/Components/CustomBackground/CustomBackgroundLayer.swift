@@ -2,12 +2,15 @@ import AVFoundation
 import SwiftUI
 
 /// A full-bleed background layer driven by `CustomBackgroundStore`.
-/// Renders an image or a looping muted video behind the terminal content.
+/// Renders an image or a looping muted video as the app's wallpaper,
+/// replacing the default white background. The terminal character
+/// decoration (rendered by `TerminalCharacterBackground`) stays on top.
 struct CustomBackgroundLayer: View {
     var body: some View {
         Group {
             switch CustomBackgroundStore.kind {
             case .none:
+                // No custom wallpaper: keep the default solid background.
                 Color.clear
             case .image:
                 if let url = CustomBackgroundStore.storedURL,
@@ -16,7 +19,6 @@ struct CustomBackgroundLayer: View {
                         .resizable()
                         .scaledToFill()
                         .ignoresSafeArea()
-                        .opacity(0.35)
                 } else {
                     Color.clear
                 }
@@ -24,12 +26,16 @@ struct CustomBackgroundLayer: View {
                 if let url = CustomBackgroundStore.storedURL {
                     RelaxinVideoBackground(url: url)
                         .ignoresSafeArea()
-                        .opacity(0.35)
                 } else {
                     Color.clear
                 }
             }
         }
+        // Keep terminal text readable on any wallpaper: a soft dim veil.
+        .overlay {
+            SwiftUI.Color.black.opacity(0.25)
+        }
+        .ignoresSafeArea()
     }
 }
 

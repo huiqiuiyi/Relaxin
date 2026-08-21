@@ -155,6 +155,10 @@ extension PostJailbreakHomeView {
                         .setBackground(.video),
                         String(localized: "Use Video Background", bundle: resourceBundle)
                     ),
+                    (
+                        .setBackgroundFromFile,
+                        String(localized: "Choose from Files", bundle: resourceBundle)
+                    ),
                 ]
                 if CustomBackgroundStore.kind != .none {
                     entries.append(
@@ -276,6 +280,7 @@ extension PostJailbreakHomeView {
         case refreshJailbreakApps
         case customizeBackground
         case setBackground(CustomBackgroundKind)
+        case setBackgroundFromFile
         case clearBackground
         case resetMobilePassword
         case reinstallSileo
