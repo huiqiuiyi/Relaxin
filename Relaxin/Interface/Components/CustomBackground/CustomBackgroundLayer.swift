@@ -11,7 +11,7 @@ struct CustomBackgroundLayer: View {
             switch CustomBackgroundStore.kind {
             case .none:
                 // No custom wallpaper: keep the default solid background.
-                Color.clear
+                SwiftUI.Color.clear
             case .image:
                 if let url = CustomBackgroundStore.storedURL,
                    let image = UIImage(contentsOfFile: url.path) {
@@ -20,14 +20,14 @@ struct CustomBackgroundLayer: View {
                         .scaledToFill()
                         .ignoresSafeArea()
                 } else {
-                    Color.clear
+                    SwiftUI.Color.clear
                 }
             case .video:
                 if let url = CustomBackgroundStore.storedURL {
                     RelaxinVideoBackground(url: url)
                         .ignoresSafeArea()
                 } else {
-                    Color.clear
+                    SwiftUI.Color.clear
                 }
             }
         }

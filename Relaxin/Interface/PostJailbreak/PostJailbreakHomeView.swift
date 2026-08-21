@@ -357,7 +357,7 @@ struct PostJailbreakHomeView: View {
                     bundle: environment.resourceBundle
                 )
             )
-            .onChange(of: backgroundPickerItem) { _, newItem in
+            .onChange(of: backgroundPickerItem) { newItem in
                 guard let newItem else { return }
                 loadBackgroundItem(newItem)
             }
