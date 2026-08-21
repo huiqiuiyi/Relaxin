@@ -357,15 +357,6 @@ struct PostJailbreakHomeView: View {
                     bundle: environment.resourceBundle
                 )
             )
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(
-                        String(localized: "Cancel", bundle: environment.resourceBundle)
-                    ) {
-                        showsBackgroundPicker = false
-                    }
-                }
-            }
             .onChange(of: backgroundPickerItem) { _, newItem in
                 guard let newItem else { return }
                 loadBackgroundItem(newItem)
