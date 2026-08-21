@@ -1,5 +1,4 @@
 import LocalAuthentication
-import PhotosUI
 import SwiftUI
 
 struct PostJailbreakHomeView: View {
@@ -17,9 +16,7 @@ struct PostJailbreakHomeView: View {
     @State private var terminalColumnCount = 32
 
     /// Custom background picker presentation state.
-    @State private var showsBackgroundPicker = false
     @State private var backgroundPickerKind: CustomBackgroundKind = .image
-    @State private var backgroundPickerItem: PhotosPickerItem?
     @State private var backgroundRevision = 0
 
     private var bootLogoUsesDarkAppearance: Bool {
@@ -149,9 +146,6 @@ struct PostJailbreakHomeView: View {
             }
         )
         .modifier(LightImpactFeedbackModifier(trigger: enabledToggleOptions))
-        .sheet(isPresented: $showsBackgroundPicker) {
-            backgroundPicker
-        }
         .alert(item: $alert) { alert in
             switch alert.kind {
             case .notice:
@@ -222,7 +216,7 @@ struct PostJailbreakHomeView: View {
         case .customizeBackground:
             screen = .customBackground
         case let .setBackground(kind):
-            showBackgroundPicker(kind: kind)
+            showInAppPicker(kind: kind)
         case .clearBackground:
             CustomBackgroundStore.clear()
             backgroundRevision += 1
@@ -323,68 +317,45 @@ struct PostJailbreakHomeView: View {
 
     // MARK: - Custom Background
 
-    private func showBackgroundPicker(kind: CustomBackgroundKind) {
+    /// Presents the in-process photo/video grid picker.
+    private func showInAppPicker(kind: CustomBackgroundKind) {
         backgroundPickerKind = kind
-        backgroundPickerItem = nil
-        showsBackgroundPicker = true
+
+        let controller: RelaxinPhotoPickerController
+        if kind == .image {
+            controller = RelaxinPhotoPickerController.imageMode(
+                onPick: { [weak self] url in
+                    self?.installBackground(url: url)
+                },
+                onCancel: {}
+            )
+        } else {
+            controller = RelaxinPhotoPickerController.videoMode(
+                onPick: { [weak self] url in
+                    self?.installBackground(url: url)
+                },
+                onCancel: {}
+            )
+        }
+
+        let nav = UINavigationController(rootViewController: controller)
+        nav.modalPresentationStyle = .pageSheet
+        guard let host = viewControllerHost() else { return }
+        host.present(nav, animated: true)
     }
 
-    @ViewBuilder
-    private var backgroundPicker: some View {
-        NavigationStack {
-            PhotosPicker(
-                selection: $backgroundPickerItem,
-                matching: backgroundPickerKind == .image ? .images : .videos,
-                preferredItemEncoding: .current
-            ) {
-                Text(
-                    backgroundPickerKind == .image
-                        ? "选择背景图片"
-                        : "选择背景视频"
-                )
-                .font(Theme.font)
-                .padding()
-            }
-            .navigationTitle("自定义背景")
-            .onChange(of: backgroundPickerItem) { newItem in
-                guard let newItem else { return }
-                loadBackgroundItem(newItem)
-            }
+    private func installBackground(url: URL) {
+        guard CustomBackgroundStore.install(
+            kind: backgroundPickerKind,
+            sourceURL: url
+        ) else {
+            AppLog.error(Self.self, "background install failed: \(url)")
+            return
         }
-        .presentationDetents([.medium, .large])
-    }
+        try? FileManager.default.removeItem(at: url)
 
-    private func loadBackgroundItem(_ item: PhotosPickerItem) {
-        Task { @MainActor in
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self),
-                      !data.isEmpty
-                else {
-                    return
-                }
-
-                let fileExtension = backgroundPickerKind == .image ? "jpg" : "mov"
-                let temporaryURL = FileManager.default.temporaryDirectory
-                    .appendingPathComponent(
-                        "relaxin-background-\(UUID().uuidString).\(fileExtension)"
-                    )
-                try data.write(to: temporaryURL)
-
-                guard CustomBackgroundStore.install(
-                    kind: backgroundPickerKind,
-                    sourceURL: temporaryURL
-                ) else {
-                    return
-                }
-                try? FileManager.default.removeItem(at: temporaryURL)
-
-                backgroundRevision += 1
-                showsBackgroundPicker = false
-                screen = .customBackground
-            } catch {
-                AppLog.error(Self.self, "background pick failed: \(error)")
-            }
-        }
+        backgroundRevision += 1
+        screen = .customBackground
     }
 
     /// Long-press on the terminal banner: edit the slogan text.

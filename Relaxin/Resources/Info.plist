@@ -9,6 +9,8 @@
 	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authentication is required to change your mobile password.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问相册以选择自定义壁纸。</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

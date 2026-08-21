@@ -12,7 +12,7 @@ RELAXIN_BASEBIN_DEPLOYMENT_TARGET = 16.5
 
 // System frameworks used by the app target (auto-linking is enabled, but
 // keeping them explicit avoids surprises in lite/overlay builds).
-OTHER_LDFLAGS = $(inherited) -framework AVFoundation -framework PhotosUI
+OTHER_LDFLAGS = $(inherited) -framework AVFoundation -framework Photos -framework PhotosUI
 
 // arm64e only — do not add arm64 back
 // simulator support is removed
