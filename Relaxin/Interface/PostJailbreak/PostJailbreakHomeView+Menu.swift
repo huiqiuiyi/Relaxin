@@ -7,6 +7,7 @@ extension PostJailbreakHomeView {
         case advancedOptions
         case resetAndRemoval
         case credits
+        case customBackground
         case confirmation(ConfirmationAction)
 
         enum TerminalSurface {
@@ -29,6 +30,8 @@ extension PostJailbreakHomeView {
                 .command("relaxin/advanced-options")
             case .resetAndRemoval:
                 .command("relaxin/advanced-options/reset-and-remove")
+            case .customBackground:
+                .command("relaxin/advanced-options/custom-background")
             case .credits:
                 .credits
             case .confirmation:
@@ -40,7 +43,7 @@ extension PostJailbreakHomeView {
             switch self {
             case .advancedOptions, .credits:
                 .home
-            case .resetAndRemoval:
+            case .resetAndRemoval, .customBackground:
                 .advancedOptions
             case let .confirmation(action):
                 switch action {
@@ -107,6 +110,10 @@ extension PostJailbreakHomeView {
                         )
                     ),
                     (
+                        .customizeBackground,
+                        "\(String(localized: "Custom Background", bundle: resourceBundle)): \(CustomBackgroundStore.summary)"
+                    ),
+                    (
                         .resetAndRemoval,
                         String(localized: "Reset & Remove", bundle: resourceBundle)
                     ),
@@ -137,6 +144,29 @@ extension PostJailbreakHomeView {
                     ),
                     (.back, String(localized: "Back", bundle: resourceBundle)),
                 ])
+                return entries
+            case .customBackground:
+                var entries: [(MenuAction, String)] = [
+                    (
+                        .setBackground(.image),
+                        String(localized: "Use Image Background", bundle: resourceBundle)
+                    ),
+                    (
+                        .setBackground(.video),
+                        String(localized: "Use Video Background", bundle: resourceBundle)
+                    ),
+                ]
+                if CustomBackgroundStore.kind != .none {
+                    entries.append(
+                        (
+                            .clearBackground,
+                            String(localized: "Remove Background", bundle: resourceBundle)
+                        )
+                    )
+                }
+                entries.append(
+                    (.back, String(localized: "Back", bundle: resourceBundle))
+                )
                 return entries
             case .credits:
                 var entries: [(MenuAction, String)] = []
@@ -244,6 +274,9 @@ extension PostJailbreakHomeView {
         case restartSpringBoard
         case restartUserspace
         case refreshJailbreakApps
+        case customizeBackground
+        case setBackground(CustomBackgroundKind)
+        case clearBackground
         case resetMobilePassword
         case reinstallSileo
         case removeJailbreak

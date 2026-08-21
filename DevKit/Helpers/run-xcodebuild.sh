@@ -82,6 +82,10 @@ if [ "$XC_STATUS" -ne 0 ] || [ "$FOUND_ERRORS" -ne 0 ]; then
         echo "---- first 40 error lines from log ----" >&2
         grep -En "$ERR_RE" "$LOG" | head -40 >&2 || true
         echo "---------------------------------------" >&2
+        # 额外：打印可能与打包相关的上下文（dpkg/deb/tar/rsync/cp 失败行）
+        echo "---- packaging-context lines (last 60) ----" >&2
+        grep -En "dpkg|\.deb|tar|rsync|VerifyAdHoc|codesign|failed|No such|not found|error" "$LOG" | tail -60 >&2 || true
+        echo "---------------------------------------" >&2
     fi
     # Prefer propagating the original xcodebuild exit status when it's non-zero;
     # otherwise fail with 1 because the log says the run is bad.

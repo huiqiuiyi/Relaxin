@@ -1,4 +1,5 @@
 import LocalAuthentication
+import PhotosUI
 import SwiftUI
 
 struct PostJailbreakHomeView: View {
@@ -14,6 +15,12 @@ struct PostJailbreakHomeView: View {
     @State private var alert: Alert?
     @State private var visibleCreditCharacterCount = 0
     @State private var terminalColumnCount = 32
+
+    /// Custom background picker presentation state.
+    @State private var showsBackgroundPicker = false
+    @State private var backgroundPickerKind: CustomBackgroundKind = .image
+    @State private var backgroundPickerItem: PhotosPickerItem?
+    @State private var backgroundRevision = 0
 
     private var bootLogoUsesDarkAppearance: Bool {
         colorScheme == .dark
@@ -124,6 +131,7 @@ struct PostJailbreakHomeView: View {
         )
         .disabled(session.isPerformingAction)
         .allowsHitTesting(!session.isPerformingAction)
+        .id(backgroundRevision)
         .task(id: screen == .credits) {
             await animateCreditsIfNeeded()
         }
@@ -133,6 +141,9 @@ struct PostJailbreakHomeView: View {
             }
         )
         .modifier(LightImpactFeedbackModifier(trigger: enabledToggleOptions))
+        .sheet(isPresented: $showsBackgroundPicker) {
+            backgroundPicker
+        }
         .alert(item: $alert) { alert in
             switch alert.kind {
             case .notice:
@@ -200,6 +211,14 @@ struct PostJailbreakHomeView: View {
             restartUserspace()
         case .refreshJailbreakApps:
             session.perform(.refreshJailbreakApps)
+        case .customizeBackground:
+            screen = .customBackground
+        case let .setBackground(kind):
+            showBackgroundPicker(kind: kind)
+        case .clearBackground:
+            CustomBackgroundStore.clear()
+            backgroundRevision += 1
+            screen = .advancedOptions
         case .resetMobilePassword:
             authenticateForPasswordReset()
         case .reinstallSileo:
@@ -291,6 +310,89 @@ struct PostJailbreakHomeView: View {
                 RelaxinCredits.characterCount
             )
             visibleCreditCharacterCount = characterCount
+        }
+    }
+
+    // MARK: - Custom Background
+
+    private func showBackgroundPicker(kind: CustomBackgroundKind) {
+        backgroundPickerKind = kind
+        backgroundPickerItem = nil
+        showsBackgroundPicker = true
+    }
+
+    @ViewBuilder
+    private var backgroundPicker: some View {
+        NavigationStack {
+            PhotosPicker(
+                selection: $backgroundPickerItem,
+                matching: backgroundPickerKind == .image ? .images : .videos,
+                preferredItemEncoding: .current
+            ) {
+                Text(
+                    String(
+                        localized: backgroundPickerKind == .image
+                            ? "Choose Background Image"
+                            : "Choose Background Video",
+                        bundle: environment.resourceBundle
+                    )
+                )
+                .font(Theme.font)
+                .padding()
+            }
+            .navigationTitle(
+                String(
+                    localized: "Custom Background",
+                    bundle: environment.resourceBundle
+                )
+            )
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(
+                        String(localized: "Cancel", bundle: environment.resourceBundle)
+                    ) {
+                        showsBackgroundPicker = false
+                    }
+                }
+            }
+            .onChange(of: backgroundPickerItem) { _, newItem in
+                guard let newItem else { return }
+                loadBackgroundItem(newItem)
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func loadBackgroundItem(_ item: PhotosPickerItem) {
+        Task { @MainActor in
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      !data.isEmpty
+                else {
+                    return
+                }
+
+                let fileExtension = backgroundPickerKind == .image ? "jpg" : "mov"
+                let temporaryURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(
+                        "relaxin-background-\(UUID().uuidString).\(fileExtension)"
+                    )
+                try data.write(to: temporaryURL)
+
+                guard CustomBackgroundStore.install(
+                    kind: backgroundPickerKind,
+                    sourceURL: temporaryURL
+                ) else {
+                    return
+                }
+                try? FileManager.default.removeItem(at: temporaryURL)
+
+                backgroundRevision += 1
+                showsBackgroundPicker = false
+                screen = .customBackground
+            } catch {
+                AppLog.error(Self.self, "background pick failed: \(error)")
+            }
         }
     }
 }

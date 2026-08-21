@@ -78,6 +78,8 @@ struct HomeContent<Action: Hashable>: View {
             ZStack {
                 Theme.background
 
+                CustomBackgroundLayer()
+
                 TerminalCharacterBackground(
                     rendersActively: rendersTerminalBackgroundActively
                 )
