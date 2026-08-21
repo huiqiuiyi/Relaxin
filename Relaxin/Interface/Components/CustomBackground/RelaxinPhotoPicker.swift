@@ -23,7 +23,11 @@ final class RelaxinPhotoPickerController: UIViewController {
     private var thumbnailCache: [String: UIImage] = [:]
     private let imageManager = PHImageManager.default()
 
-    init(mode: PickerMode, onPick: @escaping (URL) -> Void, onCancel: @escaping () -> Void) {
+    private init(
+        mode: PickerMode,
+        onPick: @escaping (URL) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
         self.mode = mode
         self.onPick = onPick
         self.onCancel = onCancel
