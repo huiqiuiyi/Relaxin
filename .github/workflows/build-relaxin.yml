@@ -1,0 +1,63 @@
+name: 编译 Relaxin (云端出 .ipa)
+
+# 触发方式：
+#  ★ 手动触发：仓库 Actions 页面 → 选「编译 Relaxin」→ Run workflow。
+#  ★ 需要 macOS 云主机（Xcode 工具链），Relaxin 只能在 macOS 上构建。
+#  产物：Relaxin-<version>.ipa（unsigned，可自签安装）
+on:
+  workflow_dispatch:
+
+jobs:
+  build-relaxin:
+    name: 构建 Relaxin IPA
+    runs-on: macos-15   # Xcode 16（工程 objectVersion 77 需要 Xcode 16+）
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装打包工具 (ldid / zstd / gtar / rg / dpkg / trustcache)
+        run: |
+          brew install ldid zstd gnu-tar ripgrep dpkg
+          # trustcache：越狱社区标准工具（Dopamine 系），官方 release 直接下载
+          TCMACHINE="$(uname -m)"
+          TCNAME="trustcache_macos_x86_64"
+          [ "$TCMACHINE" = "arm64" ] && TCNAME="trustcache_macos_arm64"
+          curl -fL -o /tmp/trustcache \
+            "https://github.com/CRKatri/trustcache/releases/latest/download/$TCNAME"
+          chmod +x /tmp/trustcache
+          sudo cp /tmp/trustcache /usr/local/bin/trustcache
+          command -v trustcache
+
+      - name: 恢复脚本执行权限
+        # Windows 提交时 .sh 的执行位会丢失，这里统一补回
+        run: |
+          find . -type f -name "*.sh" -exec chmod +x {} \;
+          chmod +x DevKit/Helpers/* 2>/dev/null || true
+
+      - name: 准备 RootHide bootstrap 资源
+        run: |
+          make bootstrap-resources
+
+      - name: 构建并打包 IPA
+        run: |
+          make ipa 2>&1 | tee /tmp/relaxin-build.log
+          RC=${PIPESTATUS[0]}
+          if [ $RC -ne 0 ]; then
+            echo "===== TAIL OF BUILD LOG ====="
+            tail -100 /tmp/relaxin-build.log
+          fi
+          exit $RC
+
+      - name: 上传 .ipa（到本次运行的 Artifacts）
+        uses: actions/upload-artifact@v4
+        with:
+          name: Relaxin-ipa
+          path: build/Artifacts/*.ipa
+          if-no-files-found: error
+
+      - name: 上传 .tipa（免沙盒版，若生成）
+        uses: actions/upload-artifact@v4
+        with:
+          name: Relaxin-tipa
+          path: build/Artifacts/*.tipa
+          if-no-files-found: ignore
