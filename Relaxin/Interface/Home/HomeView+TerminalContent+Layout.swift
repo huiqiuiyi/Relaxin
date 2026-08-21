@@ -140,12 +140,7 @@ extension RelaxinTerminalContent {
             TerminalStyle.bold(bannerTop),
             TerminalStyle.bold(bannerBottom) + " " + status,
             "",
-            TerminalStyle.dim(
-                String(
-                    localized: "For iOS 16.5.1-17.3.1 devices",
-                    bundle: resourceBundle
-                )
-            ),
+            TerminalStyle.dim(RelaxinSlogan.current),
             TerminalStyle.dim(String(repeating: "─", count: dividerWidth)),
         ]
     }

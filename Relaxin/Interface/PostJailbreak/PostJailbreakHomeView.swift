@@ -129,11 +129,19 @@ struct PostJailbreakHomeView: View {
                 && !session.isPerformingAction,
             allowsOpeningTerminalLinks: environment.interfaceMode.allowsExternalNavigation,
             onTerminalColumnCountChange: { terminalColumnCount = $0 },
-            onSelectMenuItem: performMenuAction
+            onSelectMenuItem: performMenuAction,
+            onTerminalLongPress: promptSloganEdit
         )
         .disabled(session.isPerformingAction)
         .allowsHitTesting(!session.isPerformingAction)
         .id(backgroundRevision)
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: RelaxinSlogan.changedNotification
+            )
+        ) { _ in
+            backgroundRevision += 1
+        }
         .task(id: screen == .credits) {
             await animateCreditsIfNeeded()
         }
@@ -428,5 +436,79 @@ struct PostJailbreakHomeView: View {
         case let .failure(error):
             AppLog.error(Self.self, "background file pick failed: \(error)")
         }
+    }
+
+    /// Long-press on the terminal banner: edit the slogan text.
+    private func promptSloganEdit() {
+        guard !session.isPerformingAction else { return }
+
+        let alert = UIAlertController(
+            title: String(
+                localized: "Custom Slogan",
+                bundle: environment.resourceBundle
+            ),
+            message: String(
+                localized: "Edit the text shown on the home screen.",
+                bundle: environment.resourceBundle
+            ),
+            preferredStyle: .alert
+        )
+        alert.addTextField { textField in
+            textField.text = RelaxinSlogan.current
+            textField.clearButtonMode = .whileEditing
+            textField.autocapitalizationType = .sentences
+        }
+        alert.addAction(
+            UIAlertAction(
+                title: String(
+                    localized: "Save",
+                    bundle: environment.resourceBundle
+                ),
+                style: .default
+            ) { [weak alert] _ in
+                let text = alert?.textFields?.first?.text ?? ""
+                RelaxinSlogan.set(text)
+            }
+        )
+        alert.addAction(
+            UIAlertAction(
+                title: String(
+                    localized: "Reset",
+                    bundle: environment.resourceBundle
+                ),
+                style: .destructive
+            ) { _ in
+                RelaxinSlogan.reset()
+            }
+        )
+        alert.addAction(
+            UIAlertAction(
+                title: String(
+                    localized: "Cancel",
+                    bundle: environment.resourceBundle
+                ),
+                style: .cancel
+            )
+        )
+
+        guard let host = viewControllerHost() else { return }
+        host.present(alert, animated: true)
+    }
+
+    /// Finds the nearest presented UIViewController to host UIKit alerts.
+    private func viewControllerHost() -> UIViewController? {
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })
+        else {
+            return nil
+        }
+        var top = windowScene.windows
+            .first(where: { $0.isKeyWindow })?
+            .rootViewController
+        while let presented = top?.presentedViewController {
+            top = presented
+        }
+        return top
     }
 }

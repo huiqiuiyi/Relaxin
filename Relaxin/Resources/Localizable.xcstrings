@@ -3698,5 +3698,29 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用视频背景" } }
       }
     },
+    "Custom Slogan" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom Slogan" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义标语" } }
+      }
+    },
+    "Edit the text shown on the home screen." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit the text shown on the home screen." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "修改首页显示的文字。" } }
+      }
+    },
+    "Save" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存" } }
+      }
+    },
+    "Reset" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置" } }
+      }
+    },
   "version" : "1.3"
 }
